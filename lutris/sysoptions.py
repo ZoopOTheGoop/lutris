@@ -110,7 +110,7 @@ def get_vk_icd_choices():
                 intel.append(loader)
             elif "radeon" in loader:
                 amdradv.append(loader)
-            elif "nvidia" in loader:
+            elif "nvidia" in loader or "nv_" in loader:
                 nvidia.append(loader)
             elif "amd" in loader:
                 if "pro" in loader:
