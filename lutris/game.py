@@ -10,7 +10,7 @@ import subprocess
 import time
 from gettext import gettext as _
 
-from gi.repository import GLib, GObject, Gtk
+from gi.repository import Gdk, GLib, GObject, Gtk
 
 from lutris import runtime, settings
 from lutris.command import MonitoredCommand
@@ -443,23 +443,53 @@ class Game(GObject.Object):
         if "error" in gameplay_info:
             raise self.get_config_error(gameplay_info)
 
-        if self.config.game_level.get("game", {}).get("launch_configs"):
-            configs = self.config.game_level["game"]["launch_configs"]
-            dlg = dialogs.LaunchConfigSelectDialog(self, configs)
-            if not dlg.confirmed:
-                return {}  # no error here- the user cancelled out
+        game_config = self.config.game_level.get("game", {})
+        if game_config.get("launch_configs"):
+            configs = game_config["launch_configs"]
 
-            if dlg.config_index:
-                config = configs[dlg.config_index - 1]
+            config_index = None
+            preferred_launch_command_name = game_config.get("preferred_launch_command_name")
+            config_name_to_save = preferred_launch_command_name
+
+            keymap = Gdk.Keymap.get_default()
+            if keymap.get_modifier_state() & Gdk.ModifierType.SHIFT_MASK:
+                config_name_to_save = None
+            elif preferred_launch_command_name == "(primary)":
+                config_index = 0
+            elif preferred_launch_command_name:
+                for index, config in enumerate(configs):
+                    if config.get("name") == preferred_launch_command_name:
+                        config_index = index
+
+            if config_index is None:
+                dlg = dialogs.LaunchConfigSelectDialog(self, configs)
+                if not dlg.confirmed:
+                    return {}  # no error here- the user cancelled out
+
+                config_index = dlg.config_index
+                if dlg.dont_show_again:
+                    config_name_to_save = "(primary)" if config_index == 0 else configs[config_index - 1].get(
+                        "name")
+
+            if config_index:  # index 0 for no command at all
+                config = configs[config_index - 1]
                 if "command" not in gameplay_info:
                     logger.debug("No command in %s", gameplay_info)
                     logger.debug(config)
                     # The 'file' sort of gameplay_info cannot be made to use a configuration
                     raise GameConfigError(_("The runner could not find a command to apply the configuration to."))
 
-                gameplay_info["command"] = [gameplay_info["command"][0], config["exe"]]
+                command = [gameplay_info["command"][0], config["exe"]]
                 if config.get("args"):
-                    gameplay_info["command"] += strings.split_arguments(config["args"])
+                    command += strings.split_arguments(config["args"])
+                gameplay_info["command"] = command
+
+            if preferred_launch_command_name != config_name_to_save:
+                if config_name_to_save:
+                    game_config["preferred_launch_command_name"] = config_name_to_save
+                else:
+                    del game_config["preferred_launch_command_name"]
+                self.config.save()
 
         return gameplay_info
 
