@@ -96,6 +96,9 @@ parts:
       - python3-requests
       - python3-setproctitle
       - python3-yaml
+    override-build: |
+      snapcraftctl build
+      python3 setup.py install
   
   lutris-runtime:
     after: [enable-i386]
@@ -130,7 +133,7 @@ parts:
       - xterm
       - xz-utils
       #32 bit 
-      #- lib32gcc1
+      - lib32gcc-s1
       - libc6-i386
       - libglu1-mesa:i386
       - libglvnd0:i386
