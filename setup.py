@@ -51,7 +51,9 @@ setup(
         'lutris.util.ubisoft',
         'lutris.util.wine'
     ],
-    scripts=['bin/lutris'],
+    entry_points={
+        'console_scripts': ['lutris=lutris.lutris:main']
+    },
     data_files=data_files,
     zip_safe=False,
     install_requires=[
