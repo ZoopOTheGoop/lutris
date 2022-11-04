@@ -24,28 +24,10 @@ package-repositories:
     architectures: [amd64, i386]
     key-id: 5ABCE68FF4633EA42E219156957D2708A03A4626
     key-server: keyserver.ubuntu.com
-  #   - type: apt
-  #     deb-types: [deb]
-  #     components: [main]
-
-# package-repositories:
-#   - type: apt
-#     deb-types: [deb]
-#     components: [main]
-#     suites: [$SNAPCRAFT_APT_RELEASE]
-#     key-id: 76F1A20FF987672F
-#     url: https://dl.winehq.org/wine-builds/ubuntu/
 
 parts:
-  extensible-hooks:
-    plugin: dump
-    source: https://github.com/diddlesnaps/snapcraft-utils-library.git
-    source-subdir: snapcraft-assets/extensible-hooks
-
   ld-precache:
     after:
-      - extensible-hooks
-      - gnome-extension-hack
       - lutris
       - lutris-runtime
     plugin: dump
@@ -59,27 +41,6 @@ parts:
       dpkg --add-architecture i386
       apt update
 
-  gnome-extension-hack:
-    plugin: dump
-    source: .
-    override-pull: |
-      cat <<'EOF' > gnome-extension-hack
-      #!/bin/sh
-      set +x
-      rm -f "$XDG_DATA_HOME/icons/hicolor/"* || true
-      if [ "$SNAP_ARCH" = "amd64" ]; then
-        export LD_LIBRARY_PATH="$SNAP/usr/lib/i386-linux-gnu:$SNAP/lib/i386-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib"
-
-        export LIBGL_DRIVERS_PATH="$LIBGL_DRIVERS_PATH:$SNAP/usr/lib/i386-linux-gnu/dri"
-        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBGL_DRIVERS_PATH"
-        export LIBVA_DRIVERS_PATH="$SNAP/usr/lib/i386-linux-gnu/dri"
-      fi
-      exec "$@"
-      EOF
-      chmod +x gnome-extension-hack
-    organize:
-      gnome-extension-hack: bin/gnome-extension-hack
-
   lutris:
     after: [enable-i386]
     plugin: python
@@ -90,12 +51,21 @@ parts:
     override-pull: |
       snapcraftctl pull
       sed -i 's|Icon=.*|Icon=${SNAP}/share/icons/hicolor/scalable/apps/lutris.svg|' share/applications/net.lutris.Lutris.desktop
+    # Reverse the sed the default build script does because it sets it to the install part python3 which doesn't exist
+    # when it runs
+    #
+    # This is only necessary because we need to override the fact that the Gnome SDK coerces the snap environment to make its
+    # Python the build one, which gets discarded post-build. So the chain here is
+    #
+    # Gnome extension python rips control from snapcraft python -> we coerce it back to snapcraft python -> we tell it to use the
+    # snap Python in the final run environment.
     override-build: |
-      snapcraftctl build
-      python3 setup.py install
+      craftctl default
+      /root/parts/lutris/install/bin/python3 setup.py install
+      exit 1
+      find /root/parts/lutris/install -type f -executable | xargs sed -i '1 s|#\!/usr/bin/env python3|^#\!/root/parts/lutris/install/bin/python3.*$|'
     build-environment:
       - PYTHONUSERBASE: $CRAFT_PART_INSTALL
-      - PATH: $CRAFT_PART_INSTALL/bin:$PATH
 
   lutris-runtime:
     after: [enable-i386]
@@ -110,6 +80,7 @@ parts:
       - fluid-soundfont-gs
       - libgnutls30
       - libxrandr2
+      - pciutils
       - p7zip
       - psmisc
       - unzip
@@ -124,7 +95,7 @@ parts:
       - libgnutls30:i386
       - libvulkan1:i386
       - libx11-6:i386
-      #- x11-xserver-utils:i386
+      # - x11-xserver-utils:i386
     stage:
       - -lib/ld-linux.so.2
       - -usr/bin/cpp-7
@@ -134,14 +105,6 @@ parts:
       - -usr/share/man/man1/cpp-7.1.gz
     build-attributes:
       - no-patchelf
-
-hooks:
-  install:
-    command-chain:
-      - bin/gnome-extension-hack
-  post-refresh:
-    command-chain:
-      - bin/gnome-extension-hack
 
 layout:
   /etc/ld.so.cache:
@@ -158,7 +121,7 @@ environment:
 
 apps:
   lutris:
-    command: bin/gnome-extension-hack bin/lutris -d
+    command: bin/lutris -d
     extensions: [gnome]
     desktop: share/applications/net.lutris.Lutris.desktop
     common-id: net.lutris.Lutris
@@ -193,15 +156,7 @@ apps:
       PATH: $SNAP/usr/lib/wine:$PATH
       WINEDLLPATH: $SNAP/usr/lib/x86_64-linux-gnu/wine/
       MAGIC: $SNAP/usr/share/misc/magic.mgc
-
-  # wine:
-  #   extensions: [gnome-3-28]
-  #   command: usr/bin/wine-stable
-
-  # wine64:
-  #   extensions: [gnome-3-28]
-  #   command: usr/bin/wine64-stable
-
-  # winecfg:
-  #   extensions: [gnome-3-28]
-  #   command: usr/bin/winecfg-stable
+      # From the gnome extension hacks
+      LIBGL_DRIVERS_PATH: $LIBGL_DRIVERS_PATH:$SNAP/usr/lib/i386-linux-gnu/dri
+      LD_LIBRARY_PATH: $SNAP/usr/lib/i386-linux-gnu:$SNAP/lib/i386-linux-gnu:$LD_LIBRARY_PATH:$SNAP/lib:$LIBGL_DRIVERS_PATH"
+      LIBVA_DRIVERS_PATH: $SNAP/usr/lib/i386-linux-gnu/dri
