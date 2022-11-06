@@ -6,7 +6,6 @@ adopt-info: lutris
 
 architectures:
   - build-on: amd64
-  - build-on: i386
 
 package-repositories:
   - type: apt
@@ -16,7 +15,6 @@ package-repositories:
     architectures: [amd64, i386]
     key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
     key-server: keyserver.ubuntu.com
-
   - type: apt
     url: http://ppa.launchpad.net/oibaf/graphics-drivers/ubuntu
     suites: [jammy]
@@ -24,17 +22,12 @@ package-repositories:
     architectures: [amd64, i386]
     key-id: 5ABCE68FF4633EA42E219156957D2708A03A4626
     key-server: keyserver.ubuntu.com
-  #   - type: apt
-  #     deb-types: [deb]
-  #     components: [main]
-
-# package-repositories:
-#   - type: apt
-#     deb-types: [deb]
-#     components: [main]
-#     suites: [$SNAPCRAFT_APT_RELEASE]
-#     key-id: 76F1A20FF987672F
-#     url: https://dl.winehq.org/wine-builds/ubuntu/
+  - type: apt
+    url: https://dl.winehq.org/wine-builds/ubuntu/
+    suites: [jammy]
+    components: [main]
+    architectures: [amd64, i386]
+    key-id: D43F640145369C51D786DDEA76F1A20FF987672F
 
 parts:
   extensible-hooks:
@@ -54,8 +47,8 @@ parts:
 
   enable-i386:
     plugin: nil
-    override-build: |
-      snapcraftctl build
+    override-pull: |
+      craftctl default
       dpkg --add-architecture i386
       apt update
 
@@ -88,10 +81,10 @@ parts:
     stage-packages:
       - libmagic1
     override-pull: |
-      snapcraftctl pull
+      craftctl default
       sed -i 's|Icon=.*|Icon=${SNAP}/share/icons/hicolor/scalable/apps/lutris.svg|' share/applications/net.lutris.Lutris.desktop
     override-build: |
-      snapcraftctl build
+      craftctl default
       python3 setup.py install
     build-environment:
       - PYTHONUSERBASE: $CRAFT_PART_INSTALL
@@ -101,7 +94,7 @@ parts:
     after: [enable-i386]
     plugin: nil
     override-pull: |
-      snapcraftctl pull
+      craftctl default
       dpkg --add-architecture i386
       apt update
     stage-packages:
@@ -158,7 +151,8 @@ environment:
 
 apps:
   lutris:
-    command: bin/gnome-extension-hack bin/lutris -d
+    command-chain: [ bin/gnome-extension-hack ]
+    command: bin/lutris -d
     extensions: [gnome]
     desktop: share/applications/net.lutris.Lutris.desktop
     common-id: net.lutris.Lutris
