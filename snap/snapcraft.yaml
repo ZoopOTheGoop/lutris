@@ -75,20 +75,22 @@ parts:
 
   lutris:
     after: [enable-i386]
-    plugin: python
+    plugin: meson
     source: .
-    parse-info: [share/metainfo/net.lutris.Lutris.metainfo.xml]
+    parse-info: [usr/share/metainfo/net.lutris.Lutris.metainfo.xml]
+    meson-parameters:
+      - --prefix=/usr
     stage-packages:
+      - python3-pil
+      - python3-lxml
+      - python3-requests
+      - python3-yaml
       - libmagic1
     override-pull: |
       craftctl default
-      sed -i 's|Icon=.*|Icon=${SNAP}/share/icons/hicolor/scalable/apps/lutris.svg|' share/applications/net.lutris.Lutris.desktop
-    override-build: |
-      craftctl default
-      python3 setup.py install
-    build-environment:
-      - PYTHONUSERBASE: $CRAFT_PART_INSTALL
-      - PATH: $CRAFT_PART_INSTALL/bin:$PATH
+      sed -i 's|Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/scalable/apps/lutris.svg|' share/applications/net.lutris.Lutris.desktop
+    prime:
+      - -usr/lib/*/libharfbuzz*
 
   lutris-runtime:
     after: [enable-i386]
@@ -108,6 +110,7 @@ parts:
       - unzip
       - wine
       - xz-utils
+      - x11-xserver-utils
       #32 bit
       - lib32gcc-s1
       - libc6-i386
@@ -117,7 +120,6 @@ parts:
       - libgnutls30:i386
       - libvulkan1:i386
       - libx11-6:i386
-      #- x11-xserver-utils:i386
     stage:
       - -lib/ld-linux.so.2
       - -usr/bin/cpp-7
@@ -139,6 +141,8 @@ hooks:
 layout:
   /etc/ld.so.cache:
     bind-file: $SNAP_DATA/etc/ld.so.cache
+  /usr/share/lutris:
+    bind: $SNAP/usr/share/lutris
 
 slots:
   dbus-lutris:
@@ -152,9 +156,9 @@ environment:
 apps:
   lutris:
     command-chain: [ bin/gnome-extension-hack ]
-    command: bin/lutris -d
+    command: usr/bin/lutris -d
     extensions: [gnome]
-    desktop: share/applications/net.lutris.Lutris.desktop
+    desktop: usr/share/applications/net.lutris.Lutris.desktop
     common-id: net.lutris.Lutris
     plugs:
       - audio-playback
@@ -183,8 +187,8 @@ apps:
     slots:
       - dbus-lutris
     environment:
-      PYTHONPATH: $SNAP/lib/python3.10/site-packages:$PYTHONPATH
-      PATH: $SNAP/usr/lib/wine:$PATH
+      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$PYTHONPATH
+      PATH: /usr/bin:$SNAP/usr/lib/wine:$PATH
       WINEDLLPATH: $SNAP/usr/lib/x86_64-linux-gnu/wine/
       MAGIC: $SNAP/usr/share/misc/magic.mgc
 
