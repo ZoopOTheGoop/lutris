@@ -6,7 +6,6 @@ adopt-info: lutris
 
 architectures:
   - build-on: amd64
-  - build-on: i386
 
 package-repositories:
   - type: apt
@@ -16,7 +15,6 @@ package-repositories:
     architectures: [amd64, i386]
     key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
     key-server: keyserver.ubuntu.com
-
   - type: apt
     url: http://ppa.launchpad.net/oibaf/graphics-drivers/ubuntu
     suites: [jammy]
@@ -24,17 +22,12 @@ package-repositories:
     architectures: [amd64, i386]
     key-id: 5ABCE68FF4633EA42E219156957D2708A03A4626
     key-server: keyserver.ubuntu.com
-  #   - type: apt
-  #     deb-types: [deb]
-  #     components: [main]
-
-# package-repositories:
-#   - type: apt
-#     deb-types: [deb]
-#     components: [main]
-#     suites: [$SNAPCRAFT_APT_RELEASE]
-#     key-id: 76F1A20FF987672F
-#     url: https://dl.winehq.org/wine-builds/ubuntu/
+  - type: apt
+    url: https://dl.winehq.org/wine-builds/ubuntu/
+    suites: [jammy]
+    components: [main]
+    architectures: [amd64, i386]
+    key-id: D43F640145369C51D786DDEA76F1A20FF987672F
 
 parts:
   extensible-hooks:
@@ -54,8 +47,8 @@ parts:
 
   enable-i386:
     plugin: nil
-    override-build: |
-      snapcraftctl build
+    override-pull: |
+      craftctl default
       dpkg --add-architecture i386
       apt update
 
@@ -74,6 +67,12 @@ parts:
         export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBGL_DRIVERS_PATH"
         export LIBVA_DRIVERS_PATH="$SNAP/usr/lib/i386-linux-gnu/dri"
       fi
+      export XDG_DATA_HOME="$SNAP_USER_COMMON/.local/share"
+      # Force i386
+      export SNAP_ARCH=i386
+      export ARCH="i386-linux-gnu"
+      export SNAP_LAUNCHER_ARCH_TRIPLET="$ARCH"
+
       exec "$@"
       EOF
       chmod +x gnome-extension-hack
@@ -82,26 +81,28 @@ parts:
 
   lutris:
     after: [enable-i386]
-    plugin: python
+    plugin: meson
     source: .
-    parse-info: [share/metainfo/net.lutris.Lutris.metainfo.xml]
+    parse-info: [usr/share/metainfo/net.lutris.Lutris.metainfo.xml]
+    meson-parameters:
+      - --prefix=/usr
     stage-packages:
+      - python3-pil
+      - python3-lxml
+      - python3-requests
+      - python3-yaml
       - libmagic1
     override-pull: |
-      snapcraftctl pull
-      sed -i 's|Icon=.*|Icon=${SNAP}/share/icons/hicolor/scalable/apps/lutris.svg|' share/applications/net.lutris.Lutris.desktop
-    override-build: |
-      snapcraftctl build
-      python3 setup.py install
-    build-environment:
-      - PYTHONUSERBASE: $CRAFT_PART_INSTALL
-      - PATH: $CRAFT_PART_INSTALL/bin:$PATH
+      craftctl default
+      sed -i 's|Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/scalable/apps/lutris.svg|' share/applications/net.lutris.Lutris.desktop
+    prime:
+      - -usr/lib/*/libharfbuzz*
 
   lutris-runtime:
     after: [enable-i386]
     plugin: nil
     override-pull: |
-      snapcraftctl pull
+      craftctl default
       dpkg --add-architecture i386
       apt update
     stage-packages:
@@ -110,11 +111,12 @@ parts:
       - fluid-soundfont-gs
       - libgnutls30
       - libxrandr2
-      - p7zip
+      - p7zip-full
       - psmisc
       - unzip
       - wine
       - xz-utils
+      - x11-xserver-utils
       #32 bit
       - lib32gcc-s1
       - libc6-i386
@@ -124,7 +126,6 @@ parts:
       - libgnutls30:i386
       - libvulkan1:i386
       - libx11-6:i386
-      #- x11-xserver-utils:i386
     stage:
       - -lib/ld-linux.so.2
       - -usr/bin/cpp-7
@@ -135,6 +136,36 @@ parts:
     build-attributes:
       - no-patchelf
 
+  vulkan:
+    plugin: nil
+    stage-packages:
+      - mesa-vulkan-drivers
+    prime:
+      - usr/bin/mesa-overlay-control.py
+      - usr/lib/*/libVkLayer*
+      - usr/lib/*/libvulkan*
+      - usr/lib/*/libxcb-randr*
+      - usr/lib/*/libLLVM*
+      - usr/share/drirc.d
+      - usr/share/vulkan
+
+  tools:
+    plugin: nil
+    stage-packages:
+      - vulkan-tools
+      - mesa-utils
+      - pciutils
+      - winetricks
+    prime:
+      - usr/lib/*/libpci*
+      - usr/bin/glxgears*
+      - usr/bin/glxinfo*
+      - usr/bin/vkcube
+      - usr/bin/vkcubepp
+      - usr/bin/lspci
+      - usr/bin/winetricks
+      - usr/share/icons/hicolor/scalable/apps
+
 hooks:
   install:
     command-chain:
@@ -144,8 +175,42 @@ hooks:
       - bin/gnome-extension-hack
 
 layout:
+  /usr/lib/p7zip:
+    bind: $SNAP/usr/lib/p7zip
   /etc/ld.so.cache:
     bind-file: $SNAP_DATA/etc/ld.so.cache
+  /usr/share/lutris:
+    bind: $SNAP/usr/share/lutris
+  /usr/share/libdrm:
+    bind: $SNAP/usr/share/libdrm
+  /usr/lib/i386-linux-gnu:
+    bind: $SNAP/usr/lib/i386-linux-gnu
+  /usr/lib/x86_64-linux-gnu/dri:
+    bind: $SNAP/usr/lib/x86_64-linux-gnu/dri
+  /usr/share/glvnd/egl_vendor.d:
+    bind: $SNAP/usr/share/glvnd/egl_vendor.d
+  /usr/lib/x86_64-linux-gnu/alsa-lib:
+    bind: $SNAP/usr/lib/x86_64-linux-gnu/alsa-lib
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
+  /usr/share/vulkan:
+    bind: $SNAP/usr/share/vulkan
+  /usr/lib/x86_64-linux-gnu/libvulkan_intel.so:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+  /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+  /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0
+  /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0:
+    symlink: $SNAP/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so:
+    symlink: $SNAP/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so.1:
+    symlink: $SNAP/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
 
 slots:
   dbus-lutris:
@@ -155,12 +220,15 @@ slots:
 
 environment:
   HOME: $SNAP_USER_COMMON
+  # Export Vulkan ICD filename paths
+  VK_ICD_FILENAMES: /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json:$SNAP/usr/share/vulkan/icd.d/radeon_icd.x86_64.json:$SNAP/usr/share/vulkan/icd.d/intel_icd.x86_64.json
 
 apps:
   lutris:
-    command: bin/gnome-extension-hack bin/lutris -d
+    command-chain: [ bin/gnome-extension-hack ]
+    command: usr/bin/lutris -d
     extensions: [gnome]
-    desktop: share/applications/net.lutris.Lutris.desktop
+    desktop: usr/share/applications/net.lutris.Lutris.desktop
     common-id: net.lutris.Lutris
     plugs:
       - audio-playback
@@ -189,11 +257,20 @@ apps:
     slots:
       - dbus-lutris
     environment:
-      PYTHONPATH: $SNAP/lib/python3.10/site-packages:$PYTHONPATH
-      PATH: $SNAP/usr/lib/wine:$PATH
+      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$PYTHONPATH
+      PATH: /usr/bin:$SNAP/usr/lib/wine:$PATH
       WINEDLLPATH: $SNAP/usr/lib/x86_64-linux-gnu/wine/
       MAGIC: $SNAP/usr/share/misc/magic.mgc
 
+  vkcube:
+    extensions: [gnome]
+    command: usr/bin/vkcube
+  glxinfo:
+    extensions: [gnome]
+    command: usr/bin/glxinfo
+  glxgears:
+    extensions: [gnome]
+    command: usr/bin/glxgears
   # wine:
   #   extensions: [gnome-3-28]
   #   command: usr/bin/wine-stable
