@@ -4,6 +4,19 @@ base: core22
 grade: stable
 adopt-info: lutris
 
+lint:
+  # Snapcraft's `ldd` lint can't handle 32-bit things,
+  # So just make it quiet and also make builds a surprising amount faster
+  ignore:
+    - library:
+        - lib/i386-linux-gnu/**
+        - usr/lib/i386-linux-gnu/**
+        - lib32/**
+        - usr/lib32/**
+        - opt/wine-stable/lib/wine/i386-unix/**
+        - opt/wine-stable/bin/wine
+        - usr/bin/perl5.34-i386-linux-gnu
+
 architectures:
   - build-on: amd64
 
@@ -81,6 +94,12 @@ parts:
       export ARCH="i386-linux-gnu"
       export SNAP_LAUNCHER_ARCH_TRIPLET="$ARCH"
 
+      # Gnome extension breaks fontconfig atm, this will cause wine to break in a very subtle
+      # way that's only clear if you compare verbose wine logs with one without the issue (the
+      # wine server will start freaking out while adding windows CJK fonts to the registry)
+      unset FONTCONFIG_FILE
+      unset FONTCONFIG_PATH
+
       exec "$@"
       EOF
       chmod +x gnome-extension-hack
@@ -95,6 +114,7 @@ parts:
     meson-parameters:
       - --prefix=/usr
     stage-packages:
+      - python3-distro
       - python3-pil
       - python3-lxml
       - python3-requests
@@ -249,6 +269,27 @@ slots:
     bus: session
     name: net.lutris.Lutris
 
+  nvidia-client:
+    interface: dbus
+    bus: session
+    name: nvidia.powerd.client
+
+plugs:
+  nvidia-driver-version:
+    interface: system-files
+    read:
+      - /proc/driver/nvidia/version
+      - /proc/driver/nvidia/gpus
+
+  introspect:
+    interface: dbus
+    bus: session
+    name: org.freedesktop.DBus.Introspectable
+
+  shmem:
+    interface: shared-memory
+    private: true
+
 environment:
   HOME: $SNAP_USER_COMMON
   # Export Vulkan ICD filename paths
@@ -263,6 +304,8 @@ apps:
     common-id: net.lutris.Lutris
     plugs:
       - audio-playback
+      - avahi-control
+      - avahi-observe
       - browser-support
       - daemon-notify
       - desktop
@@ -270,23 +313,32 @@ apps:
       - gsettings
       - hardware-observe
       - home
+      - shmem
+      - system-observe
       - io-ports-control
+      - introspect
       - joystick
       - kvm
       - libvirt
       - mount-observe
+      # - mutter-display-conf
       - network
       - network-bind
       - network-manager
+      - nvidia-driver-version
       - opengl
+      - process-control
       - pulseaudio
       - removable-media
       - screen-inhibit-control
+      - system-trace
       - unity7
+      - udisks2
       - wayland
       - x11
     slots:
       - dbus-lutris
+      - nvidia-client
     environment:
       PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$PYTHONPATH
       PATH: /usr/bin:$SNAP/usr/lib/wine:$PATH
