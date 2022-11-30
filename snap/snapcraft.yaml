@@ -321,9 +321,7 @@ apps:
       - hardware-observe
       - home
       - shmem
-      - system-observe
       - io-ports-control
-      - introspect
       - joystick
       - kvm
       - libvirt
@@ -337,7 +335,6 @@ apps:
       - pulseaudio
       - removable-media
       - screen-inhibit-control
-      - system-trace
       - unity7
       - udisks2
       - wayland
