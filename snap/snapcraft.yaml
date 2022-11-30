@@ -271,24 +271,30 @@ slots:
 
   nvidia-client:
     interface: dbus
-    bus: session
+    bus: system
     name: nvidia.powerd.client
 
 plugs:
+  # No interface provides these, need to be added to something
+  # (probably the `opengl` plug).
   nvidia-driver-version:
     interface: system-files
     read:
       - /proc/driver/nvidia/version
       - /proc/driver/nvidia/gpus
 
-  introspect:
-    interface: dbus
-    bus: session
-    name: org.freedesktop.DBus.Introspectable
-
   shmem:
     interface: shared-memory
     private: true
+
+  # Needed because Lutris attempts to directly control its children
+  # via `/proc` (e.g. `/proc/<pid>/environ` and `/proc/<pid>/tasks/<pid>/children`)
+  # but no current interface allows this. This should probably be added to
+  # `process-control` or `system-monitor`.
+  all-of-proc-do-not-enable-this:
+    interface: system-files
+    read:
+      - /proc
 
 environment:
   HOME: $SNAP_USER_COMMON
@@ -303,6 +309,7 @@ apps:
     desktop: usr/share/applications/net.lutris.Lutris.desktop
     common-id: net.lutris.Lutris
     plugs:
+      - all-of-proc-do-not-enable-this
       - audio-playback
       - avahi-control
       - avahi-observe
@@ -321,7 +328,6 @@ apps:
       - kvm
       - libvirt
       - mount-observe
-      # - mutter-display-conf
       - network
       - network-bind
       - network-manager
