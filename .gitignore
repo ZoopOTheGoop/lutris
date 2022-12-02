@@ -33,3 +33,6 @@ env
 
 # glade recovery files
 *.ui~
+
+# snapcraft
+*.snap
