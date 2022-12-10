@@ -335,6 +335,7 @@ apps:
       - pulseaudio
       - removable-media
       - screen-inhibit-control
+      - system-observe
       - unity7
       - udisks2
       - wayland
